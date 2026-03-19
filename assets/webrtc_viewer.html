@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;overflow:hidden;width:100vw;height:100vh}
+video{width:100vw;height:100vh;object-fit:contain;background:#000;display:block}
+#stats{
+  position:fixed;bottom:30px;left:0;right:0;
+  background:rgba(0,0,0,0.5);color:#aaa;
+  font:10px monospace;padding:3px 8px;
+  pointer-events:none;z-index:10;
+}
+</style>
+</head>
+<body>
+<video id="v" autoplay playsinline muted></video>
+<div id="stats"></div>
+<script>
+// ============================================================
+// WebRTC signaling — matches RDK X5 webrtc_streamer.cpp exactly
+//
+// Protocol:
+//   Transport: WebSocket port 8080, subprotocol "webrtc-signaling"
+//   Server sends: {"type":"offer","sdp":"..."}
+//   Server sends: {"type":"ice","candidate":"...","sdpMLineIndex":N}
+//   Client sends: {"type":"answer","sdp":"..."}
+//   Client sends: {"type":"ice","candidate":"...","sdpMLineIndex":N}
+// ============================================================
+
+var ws = null;
+var pc = null;
+var statsTimer = null;
+
+function log(s) { console.log('STATUS:' + s); }
+
+function connectTo(ip) {
+  disconnect();
+  var url = 'ws://' + ip + ':8080';
+  log('Connecting to ' + ip + '...');
+
+  try {
+    ws = new WebSocket(url, 'webrtc-signaling');
+  } catch(e) {
+    log('WebSocket error: ' + e.message);
+    return;
+  }
+
+  ws.onopen = function() {
+    log('WS connected, waiting for offer...');
+  };
+
+  ws.onmessage = function(evt) {
+    try {
+      var msg = JSON.parse(evt.data);
+      handleMsg(msg);
+    } catch(e) {
+      console.log('Parse error: ' + e.message);
+    }
+  };
+
+  ws.onerror = function() {
+    log('WebSocket connection error');
+  };
+
+  ws.onclose = function() {
+    log('Disconnected');
+  };
+}
+
+function disconnect() {
+  if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
+  if (pc) { try{pc.close();}catch(e){} pc = null; }
+  if (ws) { try{ws.close();}catch(e){} ws = null; }
+  document.getElementById('v').srcObject = null;
+  document.getElementById('stats').textContent = '';
+}
+
+async function handleMsg(msg) {
+  if (msg.type === 'offer') {
+    log('Received offer, negotiating...');
+
+    // Create PeerConnection — LAN only, no STUN/TURN
+    pc = new RTCPeerConnection({ iceServers: [] });
+
+    // Attach remote video track
+    pc.ontrack = function(evt) {
+      console.log('Track received: ' + evt.track.kind);
+      var video = document.getElementById('v');
+      if (evt.streams && evt.streams[0]) {
+        video.srcObject = evt.streams[0];
+      } else {
+        var s = new MediaStream();
+        s.addTrack(evt.track);
+        video.srcObject = s;
+      }
+    };
+
+    // Send local ICE candidates to server
+    pc.onicecandidate = function(evt) {
+      if (evt.candidate && ws && ws.readyState === 1) {
+        ws.send(JSON.stringify({
+          type: 'ice',
+          candidate: evt.candidate.candidate,
+          sdpMLineIndex: evt.candidate.sdpMLineIndex
+        }));
+      }
+    };
+
+    // Track ICE state
+    pc.oniceconnectionstatechange = function() {
+      var s = pc.iceConnectionState;
+      console.log('ICE: ' + s);
+      if (s === 'connected' || s === 'completed') {
+        log('Streaming');
+        startStats();
+      } else if (s === 'failed') {
+        log('ICE connection failed');
+      } else if (s === 'disconnected') {
+        log('Disconnected');
+      }
+    };
+
+    // We only receive video (recvonly)
+    pc.addTransceiver('video', { direction: 'recvonly' });
+
+    // Set remote offer
+    await pc.setRemoteDescription(
+      new RTCSessionDescription({ type: 'offer', sdp: msg.sdp })
+    );
+
+    // Create and send answer
+    var answer = await pc.createAnswer();
+    await pc.setLocalDescription(answer);
+
+    if (ws && ws.readyState === 1) {
+      ws.send(JSON.stringify({ type: 'answer', sdp: answer.sdp }));
+      log('Answer sent, connecting...');
+    }
+
+  } else if (msg.type === 'ice') {
+    // Add remote ICE candidate
+    if (pc) {
+      try {
+        await pc.addIceCandidate(new RTCIceCandidate({
+          candidate: msg.candidate,
+          sdpMLineIndex: msg.sdpMLineIndex
+        }));
+      } catch(e) {
+        console.log('addIceCandidate error: ' + e.message);
+      }
+    }
+  }
+}
+
+function startStats() {
+  if (statsTimer) clearInterval(statsTimer);
+  statsTimer = setInterval(async function() {
+    if (!pc) return;
+    try {
+      var stats = await pc.getStats();
+      var info = '';
+      stats.forEach(function(r) {
+        if (r.type === 'inbound-rtp' && r.kind === 'video') {
+          info += 'Frames:' + (r.framesDecoded || 0);
+          if (r.framesPerSecond) info += ' FPS:' + r.framesPerSecond;
+          info += ' ' + ((r.bytesReceived || 0) / 1024 | 0) + 'KB';
+          if (r.jitterBufferDelay && r.jitterBufferEmittedCount) {
+            info += ' JB:' + (r.jitterBufferDelay / r.jitterBufferEmittedCount * 1000 | 0) + 'ms';
+          }
+        }
+      });
+      document.getElementById('stats').textContent = info;
+    } catch(e) {}
+  }, 1000);
+}
+</script>
+</body>
+</html>

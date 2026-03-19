@@ -1,0 +1,25 @@
+name: rdk_webrtc_viewer
+description: RDK X5 WebRTC Video Viewer - Cross-platform (Android & iOS)
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.2.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  webview_flutter: ^4.10.0
+  webview_flutter_android: 4.10.13
+  webview_flutter_wkwebview: ^3.16.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  assets:
+    - assets/webrtc_viewer.html
+
+  uses-material-design: true

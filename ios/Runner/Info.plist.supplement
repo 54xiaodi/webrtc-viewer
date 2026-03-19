@@ -1,0 +1,24 @@
+<!-- Merge these entries into ios/Runner/Info.plist after `flutter create .` -->
+
+<!-- Allow cleartext HTTP/WS connections to LAN devices -->
+<!--
+<key>NSAppTransportSecurity</key>
+<dict>
+    <key>NSAllowsArbitraryLoads</key>
+    <true/>
+</dict>
+-->
+
+<!-- Force landscape orientation -->
+<!--
+<key>UISupportedInterfaceOrientations</key>
+<array>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+</array>
+<key>UISupportedInterfaceOrientations~ipad</key>
+<array>
+    <string>UIInterfaceOrientationLandscapeLeft</string>
+    <string>UIInterfaceOrientationLandscapeRight</string>
+</array>
+-->
