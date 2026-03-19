@@ -14,12 +14,16 @@ workflows:
         script: |
           cd ios
           pod install
-      - name: Build iOS (no code signing)
+      - name: Build iOS
         script: |
           flutter build ios --release --no-codesign
+      - name: Package IPA for AltStore
+        script: |
+          APP_PATH=$(find build -name "Runner.app" -type d | head -1)
+          echo "Found app at: $APP_PATH"
+          mkdir -p Payload
+          cp -r "$APP_PATH" Payload/
+          zip -r WebRTCViewer.ipa Payload
+          echo "IPA created: $(ls -la WebRTCViewer.ipa)"
     artifacts:
-      - build/ios/iphoneos/*.app
-    publishing:
-      email:
-        recipients:
-          - your-email@example.com
+      - ./*.ipa
