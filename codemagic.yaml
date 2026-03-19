@@ -1,29 +1,4 @@
 workflows:
-  # ============================================================
-  # Android Build
-  # ============================================================
-  android-build:
-    name: Android Build
-    max_build_duration: 30
-    instance_type: linux_x2
-    environment:
-      flutter: stable
-      java: 17
-    scripts:
-      - name: Get dependencies
-        script: flutter pub get
-      - name: Build APK
-        script: flutter build apk --release
-    artifacts:
-      - build/app/outputs/flutter-apk/app-release.apk
-    publishing:
-      email:
-        recipients:
-          - your-email@example.com  # Change this
-
-  # ============================================================
-  # iOS Build (runs on Codemagic's Mac)
-  # ============================================================
   ios-build:
     name: iOS Build
     max_build_duration: 60
@@ -32,8 +7,6 @@ workflows:
       flutter: stable
       xcode: latest
       cocoapods: default
-      groups:
-        - ios_credentials  # Configure in Codemagic UI
     scripts:
       - name: Get dependencies
         script: flutter pub get
@@ -41,19 +14,12 @@ workflows:
         script: |
           cd ios
           pod install
-      - name: Set up code signing
+      - name: Build iOS (no code signing)
         script: |
-          # For ad-hoc/development builds without App Store:
-          # Use Codemagic's automatic code signing
-          # Configure in Codemagic UI: Settings > Code signing
-          echo "Code signing configured via Codemagic UI"
-      - name: Build IPA
-        script: |
-          flutter build ipa --release \
-            --export-options-plist=/Users/builder/export_options.plist
+          flutter build ios --release --no-codesign
     artifacts:
-      - build/ios/ipa/*.ipa
+      - build/ios/iphoneos/*.app
     publishing:
       email:
         recipients:
-          - your-email@example.com  # Change this
+          - your-email@example.com
